@@ -1,3 +1,5 @@
-hello_world = "Hello, World!"
+hello = "Hello, World!"
+banana, mice = "in pajamas", "eats rice";
 
-print(hello_world)
+print(hello, mice)
+print(banana)
