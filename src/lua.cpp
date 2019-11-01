@@ -98,13 +98,67 @@ void Variable::Equals(std::string var)
 
 Variable Variable::nil;
 
+VariablesList::ListElement::ListElement(std::string name)
+	: name(name), next(nullptr)
+{
+	value = new Variable();
+}
+
+VariablesList::VariablesList()
+	: head(nullptr)
+{}
+
+VariablesList::~VariablesList()
+{
+	ListElement *aux;
+	while(head)
+	{
+		aux = head;
+		head = head->next;
+		delete aux;
+	}
+}
+
+Variable *VariablesList::Find(std::string name)
+{
+	VariablesList::ListElement *aux = head;
+	while(aux)
+	{
+		if(aux->name == name)
+			return aux->value;
+		aux = aux->next;
+	}
+	return nullptr;
+}
+
+Variable &VariablesList::operator[](std::string name)
+{
+	if(Find(name))
+	{
+		return *Find(name);
+	}
+	else
+	{
+		if(head)
+		{
+			last->next = new ListElement(name);
+			last = last->next;
+		} else
+		{
+			head = new ListElement(name);
+			last = head;
+		}
+		return *last->value;
+	}
+}
+
 Scope::Scope()
 	: parent(nullptr)
 {}
 
 Variable &Scope::GetVariable(std::string variable_name)
 {
-	if(variables.find(variable_name) != variables.end())
+	if(variables.Find(variable_name))
 		return variables[variable_name];
 	else if(parent == this)
 		return Variable::nil;

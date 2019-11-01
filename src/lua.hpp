@@ -60,6 +60,28 @@ public:
 	static Variable nil;
 };
 
+class VariablesList
+{
+private:
+	struct ListElement
+	{
+		std::string name;
+		Variable *value;
+		ListElement *next;
+
+		ListElement(std::string name);
+	};
+
+	ListElement *head, *last;
+
+public:
+	VariablesList();
+	~VariablesList();
+
+	Variable *Find(std::string name);
+	Variable &operator[](std::string name);
+};
+
 class Scope
 {
 public:
@@ -67,7 +89,7 @@ public:
 	std::vector<std::string> return_value;
 
 private:
-	std::map<std::string, Variable> variables;
+	VariablesList variables;
 
 public:
 	Scope();
