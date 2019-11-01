@@ -1,9 +1,7 @@
 #pragma once
 
-#include <functional>
-#include <string>
 #include <vector>
-#include <map>
+#include <string>
 
 class Variable
 {
@@ -27,8 +25,8 @@ private:
 		void *nil;
 		long double number;
 		std::string string;
-		// std::function<std::string(std::string)> function;
-		// Cfunction
+		std::function<void()> *function;
+		std::function<void()> *Cfunction;
 		// userdata
 		// table
 
@@ -51,13 +49,15 @@ public:
 	Variable();
 	Variable(const Variable &other);
 	Variable(std::string text);
+	Variable(std::function<void()> *Cfunction);
 
-	void Equals(std::string var);
-
-	friend std::ostream &operator<<(std::ostream &out, const Variable &var);
+	void Equals(const Variable &var);
+	void operator=(const Variable &var);
+	void operator()(void);
 
 public:
 	static Variable nil;
+	friend std::ostream &operator<<(std::ostream &out, const Variable &var);
 };
 
 class VariablesList
@@ -70,6 +70,7 @@ private:
 		ListElement *next;
 
 		ListElement(std::string name);
+		~ListElement();
 	};
 
 	ListElement *head, *last;
@@ -80,13 +81,20 @@ public:
 
 	Variable *Find(std::string name);
 	Variable &operator[](std::string name);
+	Variable &operator[](int index);
+	void PushBack(Variable *var);
+	void Reset();
+	int Size();
+
+public:
+	friend std::ostream &operator<<(std::ostream &out, const VariablesList &list);
 };
 
 class Scope
 {
 public:
 	Scope *parent;
-	std::vector<std::string> return_value;
+	VariablesList return_value;
 
 private:
 	VariablesList variables;
@@ -95,7 +103,7 @@ public:
 	Scope();
 
 	Variable &GetVariable(std::string variable_name);
-	void SetVariable(std::string vraiable_name, std::string value);
+	void SetVariable(std::string variable_name, const Variable &value);
 };
 
 class Lua
@@ -104,6 +112,7 @@ private:
 	Scope *global_scope, *current_scope;
 	std::istream *code;
 	std::string BUFFER;
+	VariablesList EXPBUFFER;
 	bool end;
 
 private:
@@ -121,13 +130,13 @@ public:
 	void						ParseBlock();
 	std::string					ParseVar();
 	std::vector<std::string>	ParseVarList();
-	std::string					ParseExp();
-	std::vector<std::string>	ParseExpList();
+	Variable *					ParseExp();
+	void						ParseExpList();
 	void						ParseStat();
 	void						ParseRet();
 
 	Lua &Start();
-	Lua &Assign(std::string var, std::string value);
-	Lua &Call(std::string function, const std::vector<std::string> &parameters);
+	Lua &Assign(std::string var, const Variable &value);
+	Lua &Call(std::string function);
 	Lua &End();
 };
