@@ -3,6 +3,11 @@
 #include <iostream>
 #include <fstream>
 
+void db()
+{
+	std::cout << "ASDF" << std::endl;
+}
+
 int min(int n1, int n2)
 {
 	return (n1 < n2) ? n1 : n2;
@@ -19,19 +24,25 @@ std::ostream &operator<<(std::ostream &out, const Variable &var)
 			out << var.value.number << std::flush;
 			break;
 		case Variable::lua_string:
-			out << var.value.string << std::flush;
+			out << "\"" << var.value.string << "\"" << std::flush;
+			break;
+		case Variable::lua_function:
+		case Variable::lua_Cfunction:
+			out << "Can't print functions" << std::flush;
 			break;
 	}
 	return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const std::vector<std::string> &list)
+std::ostream &operator<<(std::ostream &out, const VariablesList &list)
 {
-	for(int n = 0; n < list.size(); n++)
+	VariablesList::ListElement *aux = list.head;
+	while(aux)
 	{
-		out << list[n] << std::flush;
-		if(n != list.size() - 1)
+		out << *aux->value << std::flush;
+		if(aux->next)
 			out << ", " << std::flush;
+		aux = aux->next;
 	}
 	return out;
 }
@@ -83,20 +94,166 @@ Variable::Variable(const Variable &other)
 		case lua_string:
 			value.string = other.value.string;
 			break;
+		case lua_function:
+			value.function = other.value.function;
+			break;
 	}
 }
 
 Variable::Variable(std::string text)
-	: type(lua_string), value(text)
-{}
-
-void Variable::Equals(std::string var)
+	: type(lua_string)
 {
-	type = lua_string;
-	value.string = var;
+	value.string = text;
+}
+
+Variable::Variable(std::function<void()> *Cfunction)
+	: type(lua_Cfunction)
+{
+	value.Cfunction = Cfunction;
+}
+
+void Variable::Equals(const Variable &other)
+{
+	type = other.type;
+	switch(type)
+	{
+		case lua_number:
+			value.number = other.value.number;
+			break;
+		case lua_string:
+			value.string = other.value.string;
+			break;
+		case lua_function:
+			value.function = other.value.function;
+			break;
+	}
+}
+
+void Variable::operator=(const Variable &other)
+{
+	Equals(other);
+}
+
+void Variable::operator()(void)
+{
+	if(type == lua_Cfunction)
+	{
+		(*value.Cfunction)();
+	} else if(type == lua_function)
+		(*value.function)();
 }
 
 Variable Variable::nil;
+
+VariablesList::ListElement::ListElement(std::string name)
+	: name(name), next(nullptr)
+{
+	value = new Variable();
+}
+
+VariablesList::ListElement::~ListElement()
+{
+	delete value;
+}
+
+VariablesList::VariablesList()
+	: head(nullptr)
+{}
+
+VariablesList::~VariablesList()
+{
+	ListElement *aux;
+	while(head)
+	{
+		aux = head;
+		head = head->next;
+		delete aux;
+	}
+}
+
+Variable *VariablesList::Find(std::string name)
+{
+	VariablesList::ListElement *aux = head;
+	while(aux)
+	{
+		if(aux->name == name)
+			return aux->value;
+		aux = aux->next;
+	}
+	return nullptr;
+}
+
+Variable &VariablesList::operator[](std::string name)
+{
+	if(Find(name))
+	{
+		return *Find(name);
+	}
+	else
+	{
+		if(head)
+		{
+			last->next = new ListElement(name);
+			last = last->next;
+		} else
+		{
+			head = new ListElement(name);
+			last = head;
+		}
+		return *last->value;
+	}
+}
+
+Variable &VariablesList::operator[](int index)
+{
+	VariablesList::ListElement *aux = head;
+	while(index > 0 && aux)
+	{
+		aux = aux->next;
+		index--;
+	}
+	return *aux->value;
+}
+
+void VariablesList::PushBack(Variable *var)
+{
+	ListElement *aux = new ListElement("");
+	aux->value = var;
+	if(head)
+	{
+		last->next = aux;
+		last = last->next;
+	} else
+	{
+		head = aux;
+		last = aux;
+	}
+}
+
+void VariablesList::Reset()
+{
+	ListElement *aux (nullptr);
+	while(head)
+	{
+		//FIXME: Possible memory leak
+		head->value = nullptr;
+		aux = head;
+		head = head->next;
+		delete aux;
+	}
+}
+
+int VariablesList::Size()
+{
+	int sum = 0;
+	ListElement *aux = head;
+	while(aux)
+	{
+		sum++;
+		aux = aux->next;
+	}
+	return sum;
+}
 
 Scope::Scope()
 	: parent(nullptr)
@@ -104,7 +261,7 @@ Scope::Scope()
 
 Variable &Scope::GetVariable(std::string variable_name)
 {
-	if(variables.find(variable_name) != variables.end())
+	if(variables.Find(variable_name))
 		return variables[variable_name];
 	else if(parent == this)
 		return Variable::nil;
@@ -112,7 +269,7 @@ Variable &Scope::GetVariable(std::string variable_name)
 		return parent->GetVariable(variable_name);
 }
 
-void Scope::SetVariable(std::string variable_name, std::string value)
+void Scope::SetVariable(std::string variable_name, const Variable &value)
 {
 	variables[variable_name].Equals(value);
 }
@@ -214,11 +371,9 @@ void Lua::ParseStat()
 {
 	if(BUFFER == "func")
 	{
-		std::cout << "Defining a new function" << std::endl;
 		ParseBlock();
 	} else if(BUFFER == "while")
 	{
-		std::cout << "Entering a while loop" << std::endl;
 		ParseBlock();
 	} else
 	{
@@ -227,15 +382,15 @@ void Lua::ParseStat()
 		NextToken();
 		if(BUFFER == "=")
 		{
-			std::vector<std::string> values = ParseExpList();
-			for(int n = 0; n < min(var_list.size(), values.size()); n++)
+			ParseExpList();
+			for(int n = 0; n < var_list.size(); n++)
 			{
-				Assign(var_list[n], values[n]);
+				Assign(var_list[n], EXPBUFFER[n]);
 			}
 		} else if(BUFFER == "(")
 		{
-			std::vector<std::string> parameters = ParseExpList();
-			Call(var_list[0], parameters);
+			ParseExpList();
+			Call(var_list[0]);
 		}
 	}
 }
@@ -262,7 +417,7 @@ std::vector<std::string> Lua::ParseVarList()
 	return return_value;
 }
 
-std::string Lua::ParseExp()
+Variable *Lua::ParseExp()
 {
 	char temp;
 	(*code) >> std::skipws >> temp;
@@ -278,21 +433,22 @@ std::string Lua::ParseExp()
 			else
 				BUFFER += temp;
 		}
+		return new Variable(BUFFER);
 	}
 	else
 	{
 		code->putback(temp);
 		NextWord();
+		return &current_scope->GetVariable(BUFFER);
 	}
-	return BUFFER;
 }
 
-std::vector<std::string> Lua::ParseExpList()
+void Lua::ParseExpList()
 {
-	std::vector<std::string> return_value;
+	EXPBUFFER.Reset();
 	while(true)
 	{
-		return_value.push_back(ParseExp());
+		EXPBUFFER.PushBack(ParseExp());
 		NextToken();
 		if(BUFFER != ",")
 		{
@@ -300,12 +456,13 @@ std::vector<std::string> Lua::ParseExpList()
 			break;
 		}
 	}
-	return return_value;
 }
 
 void Lua::ParseRet()
 {
-	current_scope->return_value = ParseExpList();
+	//FIXME: AQUI TA DANDO PROBLEMA, ACHO EU
+	ParseExpList();
+	current_scope->return_value = EXPBUFFER;
 }
 
 void Lua::ParseBlock()
@@ -329,19 +486,26 @@ Lua &Lua::Start()
 	global_scope = new Scope();
 	current_scope = global_scope;
 	global_scope->parent = global_scope;
+
+	std::function<void()> *print = new std::function<void()>([&]() {
+		for(int n = 0; n < EXPBUFFER.Size(); n++)
+			std::cout << EXPBUFFER[n] << std::endl;
+	});
+	Variable print_variable (print);
+	global_scope->SetVariable("print", print_variable);
+
 	return *this;
 }
 
-Lua &Lua::Assign(std::string var, std::string value)
+Lua &Lua::Assign(std::string var, const Variable &value)
 {
 	global_scope->SetVariable(var, value);
 }
 
-Lua &Lua::Call(std::string function, const std::vector<std::string> &parameters)
+Lua &Lua::Call(std::string function)
 {
-	if(function == "print")
-		for(const std::string &var : parameters)
-			std::cout << current_scope->GetVariable(var) << std::endl;
+	#include "Cfunctions.cpp"
+	current_scope->GetVariable(function)();
 }
 
 Lua &Lua::End()
