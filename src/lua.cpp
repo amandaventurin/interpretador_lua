@@ -375,7 +375,26 @@ void Lua::ParseStat()
 	} else if(BUFFER == "while")
 	{
 		ParseBlock();
-	} else
+	} else if(BUFFER == "if")
+	{
+		ParseExp();
+		NextWord();
+		if(BUFFER == "then"){ //verificar se o exp é verdadeiro ou falso
+			ParseBlock(); 
+			do{
+				NextWord();
+				if(BUFFER == "elseif"){
+					ParseElseif();
+				}
+			}while(BUFFER != "else" && BUFFER != "end");	
+			if(BUFFER == "else")
+			{
+				ParseBlock();
+			}
+
+		}
+
+	}else{
 	{
 		PutBack();
 		std::vector<std::string> var_list = ParseVarList();
@@ -392,6 +411,14 @@ void Lua::ParseStat()
 			ParseExpList();
 			Call(var_list[0]);
 		}
+	}
+}
+
+void Lua::ParseElseif(){
+	ParseExp(); //verificar se o exp é verdadeiro ou falso
+	NextWord();
+	if(BUFFER == "then"){
+		ParseBlock();
 	}
 }
 
