@@ -1,6 +1,7 @@
 #include "lua.hpp"
 
 #include <iostream>
+#include <sstream>
 #include <fstream>
 
 void db()
@@ -101,16 +102,12 @@ Variable::Variable(const Variable &other)
 }
 
 Variable::Variable(std::string text)
-	: type(lua_string)
-{
-	value.string = text;
-}
+	: type(lua_string), value(text)
+{}
 
-Variable::Variable(std::function<void()> *Cfunction)
-	: type(lua_Cfunction)
-{
-	value.Cfunction = Cfunction;
-}
+Variable::Variable(double number)
+	: type(lua_number), value(number)
+{}
 
 void Variable::Equals(const Variable &other)
 {
@@ -127,6 +124,32 @@ void Variable::Equals(const Variable &other)
 			value.function = other.value.function;
 			break;
 	}
+}
+
+Variable *Variable::Concat(const Variable &other)
+{
+	if((type != lua_string && type != lua_number) || (other.type != lua_string && other.type != lua_number))
+		return nullptr;
+
+	std::string this_string, to_add;
+
+	if(other.type == lua_number)
+	{
+		std::ostringstream sstream;
+		sstream << other.value.number;
+		to_add = sstream.str();
+	} else
+		to_add = other.value.string;
+
+	if(type == lua_number)
+	{
+		std::ostringstream sstream;
+		sstream << value.number;
+		this_string = sstream.str();
+	} else
+		this_string = value.string;
+
+	return new Variable(this_string + to_add);
 }
 
 void Variable::operator=(const Variable &other)
@@ -380,13 +403,13 @@ void Lua::ParseStat()
 		ParseExp();
 		NextWord();
 		if(BUFFER == "then"){ //verificar se o exp é verdadeiro ou falso
-			ParseBlock(); 
+			ParseBlock();
 			do{
 				NextWord();
 				if(BUFFER == "elseif"){
 					ParseElseif();
 				}
-			}while(BUFFER != "else" && BUFFER != "end");	
+			}while(BUFFER != "else" && BUFFER != "end");
 			if(BUFFER == "else")
 			{
 				ParseBlock();
@@ -394,7 +417,7 @@ void Lua::ParseStat()
 
 		}
 
-	}else{
+	}else
 	{
 		PutBack();
 		std::vector<std::string> var_list = ParseVarList();
@@ -406,7 +429,7 @@ void Lua::ParseStat()
 			{
 				Assign(var_list[n], EXPBUFFER[n]);
 			}
-		} else if(BUFFER == "(")
+		} else if(BUFFER == "(") // Istoé: ParseFunctionCall()
 		{
 			ParseExpList();
 			Call(var_list[0]);
@@ -446,6 +469,7 @@ std::vector<std::string> Lua::ParseVarList()
 
 Variable *Lua::ParseExp()
 {
+	Variable *return_variable { nullptr };
 	char temp;
 	(*code) >> std::skipws >> temp;
 	if(temp == '\"' || temp == '\'')
@@ -457,17 +481,64 @@ Variable *Lua::ParseExp()
 			(*code) >> std::noskipws >> temp;
 			if(temp == exit_condition)
 				break;
+			else if(temp == '\\')
+			{
+				(*code) >> std::noskipws >> temp;
+				if(temp == 'n')
+					BUFFER += '\n';
+				else if(temp == 't')
+					BUFFER += '\t';
+				else if(temp == 'r')
+					BUFFER += '\r';
+			}
 			else
 				BUFFER += temp;
 		}
-		return new Variable(BUFFER);
-	}
-	else
+		return_variable = new Variable(BUFFER);
+	} else if(temp >= '0' && temp <= '9')
+	{
+		code->putback(temp);
+		BUFFER = "";
+		while(true)
+		{
+			(*code) >> std::noskipws >> temp;
+			if(isSpace(temp) || (temp != '.' && temp != '-' && isToken(temp)))
+				break;
+			else
+				BUFFER += temp;
+		}
+		code->putback(temp);
+		return_variable = new Variable(stod(BUFFER));
+	} else if(temp == '(')
+	{
+		return_variable = ParseExp();
+	} else
 	{
 		code->putback(temp);
 		NextWord();
-		return &current_scope->GetVariable(BUFFER);
+		if(BUFFER == "nil") return_variable = &Variable::nil;
+		else return_variable = &current_scope->GetVariable(BUFFER);
 	}
+
+	if(return_variable->type == Variable::lua_string)
+	{
+		NextToken();
+		if(BUFFER == "..")
+			return_variable = return_variable->Concat(*ParseExp());
+		else
+			PutBack();
+	} else if(return_variable->type == Variable::lua_number)
+	{
+		NextToken();
+		if(BUFFER == "+")
+		{
+		} else if(BUFFER == "..")
+			return_variable = return_variable->Concat(*ParseExp());
+		else
+			PutBack();
+	}
+
+	return return_variable;
 }
 
 void Lua::ParseExpList()
@@ -513,13 +584,6 @@ Lua &Lua::Start()
 	global_scope = new Scope();
 	current_scope = global_scope;
 	global_scope->parent = global_scope;
-
-	std::function<void()> *print = new std::function<void()>([&]() {
-		for(int n = 0; n < EXPBUFFER.Size(); n++)
-			std::cout << EXPBUFFER[n] << std::endl;
-	});
-	Variable print_variable (print);
-	global_scope->SetVariable("print", print_variable);
 
 	return *this;
 }
