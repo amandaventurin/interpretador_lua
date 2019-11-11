@@ -6,8 +6,7 @@
 
 class Variable
 {
-private:
-
+public:
 	enum variableType
 	{
 		lua_number,
@@ -15,11 +14,11 @@ private:
 		lua_nil,
 		lua_function,
 		lua_Cfunction,
-		lua_userdata,
+		// lua_userdata,
 		lua_table
 	};
 
-	variableType type;
+private:
 
 	union lua_values
 	{
@@ -39,20 +38,26 @@ private:
 			: string(text)
 		{}
 
+		lua_values(double number)
+			: number(number)
+		{}
+
 		~lua_values()
 		{}
 	};
 
 public:
+	variableType type;
 	lua_values value;
 
 public:
 	Variable();
 	Variable(const Variable &other);
 	Variable(std::string text);
-	Variable(std::function<void()> *Cfunction);
+	Variable(double number);
 
 	void Equals(const Variable &var);
+	Variable *Concat(const Variable &var);
 	void operator=(const Variable &var);
 	void operator()(void);
 
@@ -134,6 +139,7 @@ public:
 	Variable *					ParseExp();
 	void						ParseExpList();
 	void						ParseStat();
+	void						ParseElseif();
 	void						ParseRet();
 
 	Lua &Start();

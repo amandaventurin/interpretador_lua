@@ -1,5 +1,12 @@
-hello = "Hello, World!"
-banana, mice = "in pajamas", "eats rice";
+hello = "Hello, "
+world = ' World!'
+print(hello, world)
 
-print(hello, mice)
-print(banana)
+number = 123
+print(hello..number..world)
+
+asdf = number
+print(number, asdf)
+
+asdf = 1234
+print(number, asdf)
