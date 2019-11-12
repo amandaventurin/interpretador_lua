@@ -25,7 +25,7 @@ std::ostream &operator<<(std::ostream &out, const Variable &var)
 			out << var.value.number << std::flush;
 			break;
 		case Variable::lua_string:
-			out << "\"" << var.value.string << "\"" << std::flush;
+			out << var.value.string << std::flush;
 			break;
 		case Variable::lua_function:
 		case Variable::lua_Cfunction:
@@ -150,6 +150,30 @@ Variable *Variable::Concat(const Variable &other)
 		this_string = value.string;
 
 	return new Variable(this_string + to_add);
+}
+
+Variable *Variable::Add(const Variable &other)
+{
+	if(type == lua_number && other.type == lua_number)
+		return new Variable(value.number + other.value.number);
+}
+
+Variable *Variable::Sub(const Variable &other)
+{
+	if(type == lua_number && other.type == lua_number)
+		return new Variable(value.number - other.value.number);
+}
+
+Variable *Variable::Mul(const Variable &other)
+{
+	if(type == lua_number && other.type == lua_number)
+		return new Variable(value.number * other.value.number);
+}
+
+Variable *Variable::Div(const Variable &other)
+{
+	if(type == lua_number && other.type == lua_number)
+		return new Variable(value.number / other.value.number);
 }
 
 void Variable::operator=(const Variable &other)
@@ -532,6 +556,16 @@ Variable *Lua::ParseExp()
 		NextToken();
 		if(BUFFER == "+")
 		{
+			return_variable = return_variable->Add(*ParseExp());
+		} else if(BUFFER == "-")
+		{
+			return_variable = return_variable->Sub(*ParseExp());
+		} else if(BUFFER == "*")
+		{
+			return_variable = return_variable->Mul(*ParseExp());
+		} else if(BUFFER == "/")
+		{
+			return_variable = return_variable->Div(*ParseExp());
 		} else if(BUFFER == "..")
 			return_variable = return_variable->Concat(*ParseExp());
 		else

@@ -58,6 +58,10 @@ public:
 
 	void Equals(const Variable &var);
 	Variable *Concat(const Variable &var);
+	Variable *Add(const Variable &var);
+	Variable *Sub(const Variable &var);
+	Variable *Mul(const Variable &var);
+	Variable *Div(const Variable &var);
 	void operator=(const Variable &var);
 	void operator()(void);
 
