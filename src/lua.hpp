@@ -25,8 +25,8 @@ private:
 		void *nil;
 		long double number;
 		std::string string;
-		std::function<void()> *function;
-		std::function<void()> *Cfunction;
+		std::function<Variable *(void *)> *function;
+		std::string Cfunction;
 		// userdata
 		// table
 
@@ -58,8 +58,12 @@ public:
 
 	void Equals(const Variable &var);
 	Variable *Concat(const Variable &var);
+	Variable *Add(const Variable &var);
+	Variable *Sub(const Variable &var);
+	Variable *Mul(const Variable &var);
+	Variable *Div(const Variable &var);
 	void operator=(const Variable &var);
-	void operator()(void);
+	void *operator()(void *);
 
 public:
 	static Variable nil;
@@ -118,13 +122,27 @@ private:
 	Scope *global_scope, *current_scope;
 	std::istream *code;
 	std::string BUFFER;
-	VariablesList EXPBUFFER;
+	VariablesList VARBUFFER;
 	bool end;
 
 private:
 	void NextWord();
 	void NextToken();
 	void PutBack();
+
+	void RegisterCFunction(std::string text);
+
+	void						ParseBlock();
+	Variable *					ParseVar();
+	void						ParseVarList();
+	Variable *					ParseExp();
+	VariablesList *				ParseExpList();
+	void						ParseStat();
+	VariablesList *				ParseFunctionCall(Variable &var);
+	void						ParseElseif();
+	void						ParseRet();
+
+	Lua &End();
 
 public:
 	Lua();
@@ -133,17 +151,5 @@ public:
 	void OpenFile(std::string file_name);
 	void ParseStream(std::streambuf *code_ptr);
 
-	void						ParseBlock();
-	std::string					ParseVar();
-	std::vector<std::string>	ParseVarList();
-	Variable *					ParseExp();
-	void						ParseExpList();
-	void						ParseStat();
-	void						ParseElseif();
-	void						ParseRet();
-
-	Lua &Start();
-	Lua &Assign(std::string var, const Variable &value);
-	Lua &Call(std::string function);
-	Lua &End();
+	Lua &Init();
 };
