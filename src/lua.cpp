@@ -4,11 +4,6 @@
 #include <sstream>
 #include <fstream>
 
-void db()
-{
-	std::cout << "ASDF" << std::endl;
-}
-
 int min(int n1, int n2)
 {
 	return (n1 < n2) ? n1 : n2;
@@ -28,8 +23,10 @@ std::ostream &operator<<(std::ostream &out, const Variable &var)
 			out << var.value.string << std::flush;
 			break;
 		case Variable::lua_function:
+			out << "Function: unknown" << std::flush;
+			break;
 		case Variable::lua_Cfunction:
-			out << "Can't print functions" << std::flush;
+			out << "C++ Function: " << var.value.Cfunction << std::flush;
 			break;
 	}
 	return out;
@@ -123,6 +120,9 @@ void Variable::Equals(const Variable &other)
 		case lua_function:
 			value.function = other.value.function;
 			break;
+		case lua_Cfunction:
+			value.Cfunction = other.value.Cfunction;
+			break;
 	}
 }
 
@@ -181,13 +181,19 @@ void Variable::operator=(const Variable &other)
 	Equals(other);
 }
 
-void Variable::operator()(void)
+void *Variable::operator()(void *expressions)
 {
+	VariablesList *return_variable = new VariablesList();
+	VariablesList &exp_list = *(VariablesList *)expressions;
 	if(type == lua_Cfunction)
 	{
-		(*value.Cfunction)();
+		#include "Cfunctions.cpp"
 	} else if(type == lua_function)
-		(*value.function)();
+	{
+		return_variable->PushBack((*value.function)(expressions));
+	}
+
+	return return_variable;
 }
 
 Variable Variable::nil;
@@ -308,10 +314,8 @@ Scope::Scope()
 
 Variable &Scope::GetVariable(std::string variable_name)
 {
-	if(variables.Find(variable_name))
+	if(variables.Find(variable_name) || parent == this)
 		return variables[variable_name];
-	else if(parent == this)
-		return Variable::nil;
 	else
 		return parent->GetVariable(variable_name);
 }
@@ -444,21 +448,25 @@ void Lua::ParseStat()
 	}else
 	{
 		PutBack();
-		std::vector<std::string> var_list = ParseVarList();
+		ParseVarList();
 		NextToken();
 		if(BUFFER == "=")
 		{
-			ParseExpList();
-			for(int n = 0; n < var_list.size(); n++)
+			VariablesList *exp_list = ParseExpList();
+			for(int n = 0; n < VARBUFFER.Size(); n++)
 			{
-				Assign(var_list[n], EXPBUFFER[n]);
+				VARBUFFER[n] = (*exp_list)[n];
 			}
-		} else if(BUFFER == "(") // Istoé: ParseFunctionCall()
+		} else if(BUFFER == "(")
 		{
-			ParseExpList();
-			Call(var_list[0]);
+			ParseFunctionCall(VARBUFFER[0]);
 		}
 	}
+}
+
+VariablesList *Lua::ParseFunctionCall(Variable &var)
+{
+	return (VariablesList *)var(ParseExpList());
 }
 
 void Lua::ParseElseif(){
@@ -469,18 +477,18 @@ void Lua::ParseElseif(){
 	}
 }
 
-std::string Lua::ParseVar()
+Variable *Lua::ParseVar()
 {
 	NextWord();
-	return BUFFER;
+	return &current_scope->GetVariable(BUFFER);
 }
 
-std::vector<std::string> Lua::ParseVarList()
+void Lua::ParseVarList()
 {
-	std::vector<std::string> return_value;
+	VARBUFFER.Reset();
 	while(true)
 	{
-		return_value.push_back(ParseVar());
+		VARBUFFER.PushBack(ParseVar());
 		NextToken();
 		if(BUFFER != ",")
 		{
@@ -488,7 +496,6 @@ std::vector<std::string> Lua::ParseVarList()
 			break;
 		}
 	}
-	return return_value;
 }
 
 Variable *Lua::ParseExp()
@@ -570,17 +577,24 @@ Variable *Lua::ParseExp()
 			return_variable = return_variable->Concat(*ParseExp());
 		else
 			PutBack();
+	} else if(return_variable->type == Variable::lua_Cfunction || return_variable->type == Variable::lua_function)
+	{
+		NextToken();
+		if(BUFFER == "(")
+			return_variable = &(*ParseFunctionCall(*return_variable))[0];
+		else
+			PutBack();
 	}
 
 	return return_variable;
 }
 
-void Lua::ParseExpList()
+VariablesList *Lua::ParseExpList()
 {
-	EXPBUFFER.Reset();
+	VariablesList *return_variable = new VariablesList();
 	while(true)
 	{
-		EXPBUFFER.PushBack(ParseExp());
+		return_variable->PushBack(ParseExp());
 		NextToken();
 		if(BUFFER != ",")
 		{
@@ -588,13 +602,12 @@ void Lua::ParseExpList()
 			break;
 		}
 	}
+	return return_variable;
 }
 
 void Lua::ParseRet()
 {
-	//FIXME: AQUI TA DANDO PROBLEMA, ACHO EU
-	ParseExpList();
-	current_scope->return_value = EXPBUFFER;
+	current_scope->return_value = *ParseExpList();
 }
 
 void Lua::ParseBlock()
@@ -613,24 +626,24 @@ void Lua::ParseBlock()
 	End();
 }
 
-Lua &Lua::Start()
+void Lua::RegisterCFunction(std::string text)
+{
+	Variable *var = new Variable();
+	var->type = Variable::lua_Cfunction;
+	var->value.Cfunction = text;
+	global_scope->SetVariable(text, *var);
+}
+
+Lua &Lua::Init()
 {
 	global_scope = new Scope();
 	current_scope = global_scope;
 	global_scope->parent = global_scope;
 
+	RegisterCFunction("print");
+	RegisterCFunction("type");
+
 	return *this;
-}
-
-Lua &Lua::Assign(std::string var, const Variable &value)
-{
-	global_scope->SetVariable(var, value);
-}
-
-Lua &Lua::Call(std::string function)
-{
-	#include "Cfunctions.cpp"
-	current_scope->GetVariable(function)();
 }
 
 Lua &Lua::End()

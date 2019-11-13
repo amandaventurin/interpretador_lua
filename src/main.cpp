@@ -20,7 +20,7 @@ int  main(int argc, char **argv)
 	ParseParams(argc, argv);
 
 	Lua lua;
-	lua.Start();
+	lua.Init();
 
 	if(flags & BY_FILE_NAME)
 	{

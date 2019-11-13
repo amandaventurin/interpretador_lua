@@ -1,13 +1,7 @@
-hello = "Hello, "
-world = ' World!'
-print(hello, world)
-
+text = "text_string"
 number = 123
-print(hello..number..world)
 
-asdf = number
-asdf = 1234
-print(number, asdf)
+to_test = number
+tipo = type(to_test)
 
-number = number + asdf;
-print(number)
+print(to_test, tipo, type(tipo))
