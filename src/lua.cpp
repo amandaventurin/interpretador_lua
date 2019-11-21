@@ -428,24 +428,31 @@ void Lua::ParseStat()
 		ParseBlock();
 	} else if(BUFFER == "if")
 	{
-		ParseExp();
+		Variable *res = ParseExp();
 		NextWord();
-		if(BUFFER == "then"){ //verificar se o exp é verdadeiro ou falso
-			ParseBlock();
-			do{
-				NextWord();
-				if(BUFFER == "elseif"){
-					ParseElseif();
-				}
-			}while(BUFFER != "else" && BUFFER != "end");
-			if(BUFFER == "else")
+		if(BUFFER == "then"){
+			if(res->type != Variable::lua_nil)
 			{
 				ParseBlock();
+				do{
+					NextWord();
+				}while(BUFFER != "end");
+			} else
+			{
+				bool can_ifs = true;
+				do{
+					NextWord();
+					if(BUFFER == "elseif"){
+						can_ifs = !ParseElseif();
+					}
+				}while(BUFFER != "else" && BUFFER != "end");
+				if(BUFFER == "else" && can_ifs)
+				{
+					ParseBlock();
+				}
 			}
-
 		}
-
-	}else
+	} else
 	{
 		PutBack();
 		ParseVarList();
@@ -469,12 +476,14 @@ VariablesList *Lua::ParseFunctionCall(Variable &var)
 	return (VariablesList *)var(ParseExpList());
 }
 
-void Lua::ParseElseif(){
-	ParseExp(); //verificar se o exp é verdadeiro ou falso
+bool Lua::ParseElseif(){
+	Variable *res = ParseExp();
 	NextWord();
-	if(BUFFER == "then"){
+	if(BUFFER == "then" && res->type != Variable::lua_nil){
 		ParseBlock();
+		return true;
 	}
+	return false;
 }
 
 Variable *Lua::ParseVar()
@@ -550,6 +559,11 @@ Variable *Lua::ParseExp()
 		if(BUFFER == "nil") return_variable = &Variable::nil;
 		else return_variable = &current_scope->GetVariable(BUFFER);
 	}
+
+	(*code) >> std::skipws >> temp;
+	if(temp == ')')
+		return return_variable;
+	code->putback(temp);
 
 	if(return_variable->type == Variable::lua_string)
 	{

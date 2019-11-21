@@ -1,7 +1,3 @@
-text = "text_string"
-number = 123
+asdf = "foda-se"
 
-to_test = number
-tipo = type(to_test)
-
-print(to_test, tipo, type(tipo))
+print( (2 * 5) + 32 - 22 )

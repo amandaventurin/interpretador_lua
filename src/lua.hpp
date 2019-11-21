@@ -139,7 +139,7 @@ private:
 	VariablesList *				ParseExpList();
 	void						ParseStat();
 	VariablesList *				ParseFunctionCall(Variable &var);
-	void						ParseElseif();
+	bool						ParseElseif();
 	void						ParseRet();
 
 	Lua &End();
