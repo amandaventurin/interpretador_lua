@@ -57,11 +57,17 @@ public:
 	Variable(double number);
 
 	void Equals(const Variable &var);
-	Variable *Concat(const Variable &var);
+	Variable *Cat(const Variable &var);
 	Variable *Add(const Variable &var);
 	Variable *Sub(const Variable &var);
 	Variable *Mul(const Variable &var);
 	Variable *Div(const Variable &var);
+	Variable *Les(const Variable &var);
+	Variable *Gre(const Variable &var);
+	Variable *Leq(const Variable &var);
+	Variable *Geq(const Variable &var);
+	Variable *Dif(const Variable &var);
+	Variable *Equ(const Variable &var);
 	void operator=(const Variable &var);
 	void *operator()(void *);
 
@@ -142,7 +148,9 @@ private:
 	bool						ParseElseif();
 	void						ParseRet();
 
-	Lua &End();
+	Lua &BeginScope();
+	Lua &EndScope();
+	bool first_scope;
 
 public:
 	Lua();
