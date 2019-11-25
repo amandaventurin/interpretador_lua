@@ -1,7 +1,9 @@
-text = "text_string"
-number = 123
+asdf = "foda-se"
 
-to_test = number
-tipo = type(to_test)
-
-print(to_test, tipo, type(tipo))
+if (2 = 5) then
+	print("Foi de prima")
+elseif (2 = 2) then
+	print("ta no elseif, krl")
+else
+	print("Saporra entrou no else")
+end
