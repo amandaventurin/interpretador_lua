@@ -6,8 +6,7 @@
 
 class Variable
 {
-private:
-
+public:
 	enum variableType
 	{
 		lua_number,
@@ -15,19 +14,19 @@ private:
 		lua_nil,
 		lua_function,
 		lua_Cfunction,
-		lua_userdata,
+		// lua_userdata,
 		lua_table
 	};
 
-	variableType type;
+private:
 
 	union lua_values
 	{
 		void *nil;
 		long double number;
 		std::string string;
-		std::function<void()> *function;
-		std::function<void()> *Cfunction;
+		std::function<Variable *(void *)> *function;
+		std::string Cfunction;
 		// userdata
 		// table
 
@@ -39,22 +38,38 @@ private:
 			: string(text)
 		{}
 
+		lua_values(double number)
+			: number(number)
+		{}
+
 		~lua_values()
 		{}
 	};
 
 public:
+	variableType type;
 	lua_values value;
 
 public:
 	Variable();
 	Variable(const Variable &other);
 	Variable(std::string text);
-	Variable(std::function<void()> *Cfunction);
+	Variable(double number);
 
 	void Equals(const Variable &var);
+	Variable *Cat(const Variable &var);
+	Variable *Add(const Variable &var);
+	Variable *Sub(const Variable &var);
+	Variable *Mul(const Variable &var);
+	Variable *Div(const Variable &var);
+	Variable *Les(const Variable &var);
+	Variable *Gre(const Variable &var);
+	Variable *Leq(const Variable &var);
+	Variable *Geq(const Variable &var);
+	Variable *Dif(const Variable &var);
+	Variable *Equ(const Variable &var);
 	void operator=(const Variable &var);
-	void operator()(void);
+	void *operator()(void *);
 
 public:
 	static Variable nil;
@@ -113,13 +128,29 @@ private:
 	Scope *global_scope, *current_scope;
 	std::istream *code;
 	std::string BUFFER;
-	VariablesList EXPBUFFER;
+	VariablesList VARBUFFER;
 	bool end;
 
 private:
 	void NextWord();
 	void NextToken();
 	void PutBack();
+
+	void RegisterCFunction(std::string text);
+
+	void						ParseBlock();
+	Variable *					ParseVar();
+	void						ParseVarList();
+	Variable *					ParseExp();
+	VariablesList *				ParseExpList();
+	void						ParseStat();
+	VariablesList *				ParseFunctionCall(Variable &var);
+	bool						ParseElseif();
+	void						ParseRet();
+
+	Lua &BeginScope();
+	Lua &EndScope();
+	bool first_scope;
 
 public:
 	Lua();
@@ -128,16 +159,5 @@ public:
 	void OpenFile(std::string file_name);
 	void ParseStream(std::streambuf *code_ptr);
 
-	void						ParseBlock();
-	std::string					ParseVar();
-	std::vector<std::string>	ParseVarList();
-	Variable *					ParseExp();
-	void						ParseExpList();
-	void						ParseStat();
-	void						ParseRet();
-
-	Lua &Start();
-	Lua &Assign(std::string var, const Variable &value);
-	Lua &Call(std::string function);
-	Lua &End();
+	Lua &Init();
 };
